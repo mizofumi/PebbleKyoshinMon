@@ -30,6 +30,7 @@
       "DataTime",
       "IntensityLabel",
       "IntensityLevel",
+      "EstimatedIntensity",
       "CurrentLocation",
       "StationLocation",
       "ShouldVibrate"

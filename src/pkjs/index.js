@@ -1,5 +1,6 @@
 var API_BASE = 'https://eew.booyah.dev/nearest';
-var UPDATE_INTERVAL_MS = 1000;
+var ACTIVE_UPDATE_INTERVAL_MS = 1000;
+var BACKGROUND_UPDATE_INTERVAL_MS = 5000;
 var DEFAULT_SETTINGS = {
   notifyEnabled: true,
   notifyThreshold: 4
@@ -9,6 +10,8 @@ var latestPosition = null;
 var updateTimer = null;
 var requestInFlight = false;
 var demoUntil = 0;
+var watchAppVisible = true;
+var lastNotificationKey = null;
 var settings = loadSettings();
 
 function sendMessage(payload) {
@@ -67,6 +70,14 @@ function formatLocation(prefix, latitude, longitude) {
   return prefix + ' ' + latitude.toFixed(4) + ',' + longitude.toFixed(4);
 }
 
+function formatEstimatedIntensity(value) {
+  if (value === null || typeof value !== 'number' || isNaN(value)) {
+    return 'EI no data';
+  }
+
+  return 'EI ' + value.toFixed(1);
+}
+
 function intensityFromEstimated(value) {
   if (value === null || typeof value !== 'number' || isNaN(value)) {
     return { label: 'NO', level: 0 };
@@ -105,6 +116,31 @@ function intensityFromEstimated(value) {
 
 function shouldNotify(level) {
   return settings.notifyEnabled && level >= settings.notifyThreshold;
+}
+
+function maybeLaunchWatchApp() {
+  if (typeof Pebble.launchApp === 'function') {
+    Pebble.launchApp();
+  }
+}
+
+function notifyIfNeeded(response, intensity, estimatedIntensity) {
+  if (watchAppVisible || !shouldNotify(intensity.level)) {
+    return;
+  }
+
+  var notificationKey = response.dataTime + ':' + intensity.label;
+  if (notificationKey === lastNotificationKey) {
+    return;
+  }
+
+  lastNotificationKey = notificationKey;
+
+  Pebble.showSimpleNotificationOnPebble(
+    'KyoshinMon ' + intensity.label,
+    formatDataTime(response.dataTime) + ' ' + formatEstimatedIntensity(estimatedIntensity)
+  );
+  maybeLaunchWatchApp();
 }
 
 function isDemoActive() {
@@ -152,12 +188,12 @@ function fetchNearest() {
       var response = JSON.parse(xhr.responseText);
       var nearest = response.nearest || {};
       var intensity = intensityFromEstimated(nearest.estimatedIntensity);
-
-      sendMessage({
+      var payload = {
         Status: 'Updated',
         DataTime: formatDataTime(response.dataTime),
         IntensityLabel: intensity.label,
         IntensityLevel: intensity.level,
+        EstimatedIntensity: formatEstimatedIntensity(nearest.estimatedIntensity),
         CurrentLocation: formatLocation(
           'C',
           latestPosition.coords.latitude,
@@ -165,7 +201,13 @@ function fetchNearest() {
         ),
         StationLocation: formatLocation('S', nearest.lat, nearest.lon),
         ShouldVibrate: shouldNotify(intensity.level) ? 1 : 0
-      });
+      };
+
+      notifyIfNeeded(response, intensity, nearest.estimatedIntensity);
+
+      if (watchAppVisible) {
+        sendMessage(payload);
+      }
     } catch (error) {
       console.log('Parse failed: ' + error.message);
       sendMessage({ Status: 'Parse error' });
@@ -184,16 +226,16 @@ function fetchNearest() {
 
 function sendDemoSequence() {
   var sequence = [
-    { label: '0', level: 0 },
-    { label: '1', level: 1 },
-    { label: '2', level: 2 },
-    { label: '3', level: 3 },
-    { label: '4', level: 4 },
-    { label: '5-', level: 5 },
-    { label: '5+', level: 5 },
-    { label: '6-', level: 6 },
-    { label: '6+', level: 6 },
-    { label: '7', level: 7 }
+    { label: '0', level: 0, estimatedIntensity: 0.0 },
+    { label: '1', level: 1, estimatedIntensity: 1.0 },
+    { label: '2', level: 2, estimatedIntensity: 2.0 },
+    { label: '3', level: 3, estimatedIntensity: 3.0 },
+    { label: '4', level: 4, estimatedIntensity: 4.0 },
+    { label: '5-', level: 5, estimatedIntensity: 5.0 },
+    { label: '5+', level: 5, estimatedIntensity: 5.5 },
+    { label: '6-', level: 6, estimatedIntensity: 6.0 },
+    { label: '6+', level: 6, estimatedIntensity: 6.5 },
+    { label: '7', level: 7, estimatedIntensity: 7.0 }
   ];
 
   demoUntil = Date.now() + sequence.length * 900 + 1200;
@@ -206,6 +248,7 @@ function sendDemoSequence() {
           DataTime: 'Demo ' + (stepIndex + 1) + '/' + sequence.length,
           IntensityLabel: step.label,
           IntensityLevel: step.level,
+          EstimatedIntensity: formatEstimatedIntensity(step.estimatedIntensity),
           CurrentLocation: 'C demo',
           StationLocation: 'S demo',
           ShouldVibrate: shouldNotify(step.level) ? 1 : 0
@@ -215,6 +258,32 @@ function sendDemoSequence() {
   }
 
   setTimeout(fetchNearest, sequence.length * 900 + 1300);
+}
+
+function sendNotificationTest() {
+  Pebble.showSimpleNotificationOnPebble(
+    'KyoshinMon Test',
+    '通知テスト EI 4.0'
+  );
+}
+
+function requestPositionAndFetch() {
+  navigator.geolocation.getCurrentPosition(updatePosition, handleLocationError, {
+    enableHighAccuracy: false,
+    maximumAge: watchAppVisible ? 10000 : BACKGROUND_UPDATE_INTERVAL_MS,
+    timeout: 10000
+  });
+}
+
+function scheduleUpdates() {
+  var interval = watchAppVisible ? ACTIVE_UPDATE_INTERVAL_MS : BACKGROUND_UPDATE_INTERVAL_MS;
+
+  if (updateTimer) {
+    clearInterval(updateTimer);
+  }
+
+  requestPositionAndFetch();
+  updateTimer = setInterval(requestPositionAndFetch, interval);
 }
 
 function configurationUrl() {
@@ -258,6 +327,11 @@ function configurationUrl() {
     '<div class="sub">設定した震度以上を感知した時に時計を振動させます。</div>',
     '</div>',
     '<div class="row">',
+    '<label>通知テスト</label>',
+    '<button id="notificationTestButton" type="button">通知テストを送信</button>',
+    '<div class="sub">時計アプリを開いていない状態でもPebble通知が届くか確認できます。</div>',
+    '</div>',
+    '<div class="row">',
     '<label>デモ</label>',
     '<button id="demoButton" type="button">震度デモを送信</button>',
     '<div class="sub">押すと時計側で0, 1, 2, 3, 4, 5-, 5+, 6-, 6+, 7の順に表示します。</div>',
@@ -273,6 +347,7 @@ function configurationUrl() {
     'function currentSettings(){return{notifyEnabled:enabled.checked,notifyThreshold:parseInt(threshold.value,10)};}',
     'function closeWith(action){var payload=currentSettings();payload.action=action;document.location="pebblejs://close#"+encodeURIComponent(JSON.stringify(payload));}',
     'document.getElementById("saveButton").addEventListener("click",function(){closeWith("save");});',
+    'document.getElementById("notificationTestButton").addEventListener("click",function(){closeWith("notificationTest");});',
     'document.getElementById("demoButton").addEventListener("click",function(){closeWith("demo");});',
     '</script>',
     '</body>',
@@ -289,27 +364,18 @@ function updatePosition(position) {
 
 function handleLocationError(error) {
   console.log('Location error: ' + JSON.stringify(error));
-  sendMessage({
-    Status: 'Location error',
-    IntensityLabel: '--',
-    IntensityLevel: 0
-  });
+
+  if (watchAppVisible) {
+    sendMessage({
+      Status: 'Location error',
+      IntensityLabel: '--',
+      IntensityLevel: 0
+    });
+  }
 }
 
 function startUpdates() {
-  navigator.geolocation.getCurrentPosition(updatePosition, handleLocationError, {
-    enableHighAccuracy: false,
-    maximumAge: 10000,
-    timeout: 10000
-  });
-
-  updateTimer = setInterval(function() {
-    navigator.geolocation.getCurrentPosition(updatePosition, handleLocationError, {
-      enableHighAccuracy: false,
-      maximumAge: 10000,
-      timeout: 10000
-    });
-  }, UPDATE_INTERVAL_MS);
+  scheduleUpdates();
 }
 
 function stopUpdates() {
@@ -320,7 +386,13 @@ function stopUpdates() {
 }
 
 Pebble.addEventListener('ready', function() {
+  watchAppVisible = true;
   startUpdates();
+});
+
+Pebble.addEventListener('show', function() {
+  watchAppVisible = true;
+  scheduleUpdates();
 });
 
 Pebble.addEventListener('appmessage', function() {
@@ -342,6 +414,8 @@ Pebble.addEventListener('webviewclosed', function(event) {
 
     if (response.action === 'demo') {
       sendDemoSequence();
+    } else if (response.action === 'notificationTest') {
+      sendNotificationTest();
     } else {
       fetchNearest();
     }
@@ -351,5 +425,6 @@ Pebble.addEventListener('webviewclosed', function(event) {
 });
 
 Pebble.addEventListener('hide', function() {
-  stopUpdates();
+  watchAppVisible = false;
+  scheduleUpdates();
 });

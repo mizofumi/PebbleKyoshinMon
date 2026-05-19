@@ -3,6 +3,7 @@
 static Window *s_window;
 static TextLayer *s_title_layer;
 static TextLayer *s_intensity_layer;
+static TextLayer *s_estimated_intensity_layer;
 static TextLayer *s_time_layer;
 static TextLayer *s_current_location_layer;
 static TextLayer *s_station_location_layer;
@@ -49,6 +50,7 @@ static void prv_apply_colors(int level) {
   window_set_background_color(s_window, background);
   text_layer_set_background_color(s_title_layer, background);
   text_layer_set_background_color(s_intensity_layer, background);
+  text_layer_set_background_color(s_estimated_intensity_layer, background);
   text_layer_set_background_color(s_time_layer, background);
   text_layer_set_background_color(s_current_location_layer, background);
   text_layer_set_background_color(s_station_location_layer, background);
@@ -56,6 +58,7 @@ static void prv_apply_colors(int level) {
 
   text_layer_set_text_color(s_title_layer, text);
   text_layer_set_text_color(s_intensity_layer, text);
+  text_layer_set_text_color(s_estimated_intensity_layer, text);
   text_layer_set_text_color(s_time_layer, text);
   text_layer_set_text_color(s_current_location_layer, text);
   text_layer_set_text_color(s_station_location_layer, text);
@@ -82,6 +85,7 @@ static void prv_inbox_received_callback(DictionaryIterator *iter, void *context)
   Tuple *time_tuple = dict_find(iter, MESSAGE_KEY_DataTime);
   Tuple *intensity_tuple = dict_find(iter, MESSAGE_KEY_IntensityLabel);
   Tuple *level_tuple = dict_find(iter, MESSAGE_KEY_IntensityLevel);
+  Tuple *estimated_intensity_tuple = dict_find(iter, MESSAGE_KEY_EstimatedIntensity);
   Tuple *current_location_tuple = dict_find(iter, MESSAGE_KEY_CurrentLocation);
   Tuple *station_location_tuple = dict_find(iter, MESSAGE_KEY_StationLocation);
   Tuple *should_vibrate_tuple = dict_find(iter, MESSAGE_KEY_ShouldVibrate);
@@ -89,6 +93,7 @@ static void prv_inbox_received_callback(DictionaryIterator *iter, void *context)
   prv_update_layer_from_tuple(s_status_layer, status_tuple);
   prv_update_layer_from_tuple(s_time_layer, time_tuple);
   prv_update_layer_from_tuple(s_intensity_layer, intensity_tuple);
+  prv_update_layer_from_tuple(s_estimated_intensity_layer, estimated_intensity_tuple);
   prv_update_layer_from_tuple(s_current_location_layer, current_location_tuple);
   prv_update_layer_from_tuple(s_station_location_layer, station_location_tuple);
 
@@ -129,28 +134,35 @@ static void prv_window_load(Window *window) {
   layer_add_child(window_layer, text_layer_get_layer(s_title_layer));
 
   s_intensity_layer = prv_create_text_layer(
-      GRect(0, 34, bounds.size.w, 66),
+      GRect(0, 30, bounds.size.w, 46),
       fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD),
       GTextAlignmentCenter);
   text_layer_set_text(s_intensity_layer, "--");
   layer_add_child(window_layer, text_layer_get_layer(s_intensity_layer));
 
+  s_estimated_intensity_layer = prv_create_text_layer(
+      GRect(0, 74, bounds.size.w, 20),
+      fonts_get_system_font(FONT_KEY_GOTHIC_18),
+      GTextAlignmentCenter);
+  text_layer_set_text(s_estimated_intensity_layer, "EI --");
+  layer_add_child(window_layer, text_layer_get_layer(s_estimated_intensity_layer));
+
   s_time_layer = prv_create_text_layer(
-      GRect(0, 104, bounds.size.w, 24),
+      GRect(0, 98, bounds.size.w, 24),
       fonts_get_system_font(FONT_KEY_GOTHIC_18),
       GTextAlignmentCenter);
   text_layer_set_text(s_time_layer, "Waiting time");
   layer_add_child(window_layer, text_layer_get_layer(s_time_layer));
 
   s_current_location_layer = prv_create_text_layer(
-      GRect(0, 126, bounds.size.w, 18),
+      GRect(0, 122, bounds.size.w, 18),
       fonts_get_system_font(FONT_KEY_GOTHIC_14),
       GTextAlignmentCenter);
   text_layer_set_text(s_current_location_layer, "C --");
   layer_add_child(window_layer, text_layer_get_layer(s_current_location_layer));
 
   s_station_location_layer = prv_create_text_layer(
-      GRect(0, 144, bounds.size.w, 18),
+      GRect(0, 140, bounds.size.w, 18),
       fonts_get_system_font(FONT_KEY_GOTHIC_14),
       GTextAlignmentCenter);
   text_layer_set_text(s_station_location_layer, "S --");
@@ -169,6 +181,7 @@ static void prv_window_load(Window *window) {
 static void prv_window_unload(Window *window) {
   text_layer_destroy(s_title_layer);
   text_layer_destroy(s_intensity_layer);
+  text_layer_destroy(s_estimated_intensity_layer);
   text_layer_destroy(s_time_layer);
   text_layer_destroy(s_current_location_layer);
   text_layer_destroy(s_station_location_layer);
