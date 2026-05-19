@@ -62,10 +62,10 @@ static void prv_apply_colors(int level) {
   text_layer_set_text_color(s_status_layer, text);
 }
 
-static void prv_maybe_vibrate(int level) {
+static void prv_maybe_vibrate(bool should_vibrate) {
   time_t now = time(NULL);
 
-  if (level >= 4 && now - s_last_vibe_time >= 10) {
+  if (should_vibrate && now - s_last_vibe_time >= 10) {
     vibes_double_pulse();
     s_last_vibe_time = now;
   }
@@ -84,6 +84,7 @@ static void prv_inbox_received_callback(DictionaryIterator *iter, void *context)
   Tuple *level_tuple = dict_find(iter, MESSAGE_KEY_IntensityLevel);
   Tuple *current_location_tuple = dict_find(iter, MESSAGE_KEY_CurrentLocation);
   Tuple *station_location_tuple = dict_find(iter, MESSAGE_KEY_StationLocation);
+  Tuple *should_vibrate_tuple = dict_find(iter, MESSAGE_KEY_ShouldVibrate);
 
   prv_update_layer_from_tuple(s_status_layer, status_tuple);
   prv_update_layer_from_tuple(s_time_layer, time_tuple);
@@ -93,8 +94,9 @@ static void prv_inbox_received_callback(DictionaryIterator *iter, void *context)
 
   if (level_tuple) {
     int level = (int)level_tuple->value->int32;
+    bool should_vibrate = should_vibrate_tuple && should_vibrate_tuple->value->int32;
     prv_apply_colors(level);
-    prv_maybe_vibrate(level);
+    prv_maybe_vibrate(should_vibrate);
   }
 }
 
@@ -128,7 +130,7 @@ static void prv_window_load(Window *window) {
 
   s_intensity_layer = prv_create_text_layer(
       GRect(0, 34, bounds.size.w, 66),
-      fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD),
+      fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD),
       GTextAlignmentCenter);
   text_layer_set_text(s_intensity_layer, "--");
   layer_add_child(window_layer, text_layer_get_layer(s_intensity_layer));

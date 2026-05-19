@@ -1,0 +1,47 @@
+{
+    "displayName": "KyoshinMon",
+    "uuid": "f648b2c7-f432-4a69-b1f9-8eaae7dd33cf",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+        "aplite",
+        "basalt",
+        "chalk",
+        "diorite",
+        "emery",
+        "flint",
+        "gabbro"
+    ],
+    "watchapp": {
+        "watchface": false
+    },
+    "capabilities": [
+        "configurable"
+    ],
+    "messageKeys": {
+        "Status": 10000,
+        "DataTime": 10001,
+        "IntensityLabel": 10002,
+        "IntensityLevel": 10003,
+        "CurrentLocation": 10004,
+        "StationLocation": 10005,
+        "ShouldVibrate": 10006
+    },
+    "resources": {
+        "media": []
+    },
+    "name": "KyoshinMon",
+    "shortName": "KyoshinMon",
+    "longName": "KyoshinMon",
+    "versionLabel": "1.0.0",
+    "companyName": "MakeAwesomeHappen",
+    "appKeys": {
+        "Status": 10000,
+        "DataTime": 10001,
+        "IntensityLabel": 10002,
+        "IntensityLevel": 10003,
+        "CurrentLocation": 10004,
+        "StationLocation": 10005,
+        "ShouldVibrate": 10006
+    }
+}

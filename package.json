@@ -22,13 +22,17 @@
     "watchapp": {
       "watchface": false
     },
+    "capabilities": [
+      "configurable"
+    ],
     "messageKeys": [
       "Status",
       "DataTime",
       "IntensityLabel",
       "IntensityLevel",
       "CurrentLocation",
-      "StationLocation"
+      "StationLocation",
+      "ShouldVibrate"
     ],
     "resources": {
       "media": []
