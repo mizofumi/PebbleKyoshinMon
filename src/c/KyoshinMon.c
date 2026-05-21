@@ -30,6 +30,31 @@
  *     Pebble SDK が自動生成する定数です。
  *   - TextLayer に渡す文字列は AppMessage のバッファ由来です。
  *     このアプリでは受信直後に表示へ反映する使い方にしています。
+ *
+ * C 側ライフサイクル:
+ *
+ *   main()
+ *     |
+ *     v
+ *   prv_init()
+ *     |  Window 作成、callback 登録、AppMessage 開始
+ *     v
+ *   window_stack_push()
+ *     |
+ *     v
+ *   prv_window_load()
+ *     |  TextLayer 作成、初期表示
+ *     v
+ *   app_event_loop()
+ *     |  ここで待機し続け、以下のイベントで callback が呼ばれる
+ *     |    - AppMessage 受信       -> prv_inbox_received_callback()
+ *     |    - AppMessage 受信失敗   -> prv_inbox_dropped_callback()
+ *     |    - Window が閉じられる   -> prv_window_unload()
+ *     v
+ *   prv_deinit()
+ *     |  Window 破棄
+ *     v
+ *   終了
  */
 
 /* 画面部品は callback の中からも触るため、ファイル全体で使える static 変数にします。 */
@@ -359,6 +384,11 @@ static void prv_deinit(void) {
  *
  * app_event_loop() の間、ボタン操作・AppMessage 受信・画面表示などのイベントを
  * Pebble OS が callback として呼び出してくれます。
+ *
+ * 初心者向けの見方:
+ *   main 自体はとても短いですが、実際の処理は登録済み callback に分かれています。
+ *   「起動時に全部を順番に実行する」のではなく、
+ *   「起動時に準備して、あとはイベントが来た時だけ反応する」構造です。
  */
 int main(void) {
   prv_init();

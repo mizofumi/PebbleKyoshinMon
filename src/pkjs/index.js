@@ -27,6 +27,42 @@
  *     C 側の MESSAGE_KEY_... と対応しています。
  *   - PebbleKit JS は古い JavaScript 実行環境でも動く必要があるため、
  *     var と ES5 風の書き方に寄せています。
+ *
+ * JS 側ライフサイクル:
+ *
+ *   PebbleKit JS 起動
+ *        |
+ *        v
+ *   ready event
+ *        |  watchAppVisible=true / 定期更新開始
+ *        v
+ *   requestPositionAndFetch()
+ *        |  navigator.geolocation で現在地取得
+ *        v
+ *   updatePosition()
+ *        |  latestPosition 保存
+ *        v
+ *   fetchNearest()
+ *        |  XMLHttpRequest で API へ GET
+ *        v
+ *   sendMessage()
+ *        |  Pebble.sendAppMessage で時計側へ送信
+ *        v
+ *   C 側の prv_inbox_received_callback()
+ *
+ * 画面表示状態による分岐:
+ *
+ *   show event  -> watchAppVisible=true  -> 1 秒ごとの更新
+ *   hide event  -> watchAppVisible=false -> 5 秒ごとの背景更新
+ *
+ * 設定画面の往復:
+ *
+ *   showConfiguration
+ *        -> Pebble.openURL(configurationUrl())
+ *        -> スマホの WebView が開く
+ *        -> pebblejs://close#... で閉じる
+ *        -> webviewclosed event
+ *        -> 設定保存 / デモ / 通知テスト / 再取得
  */
 
 /* 現在地に一番近い観測点・推定震度を返す API の入口です。 */
@@ -534,6 +570,11 @@ function stopUpdates() {
  * appmessage        : 時計側から何か届いた
  * showConfiguration : ユーザーが設定画面を開いた
  * webviewclosed     : 設定画面が閉じられた
+ *
+ * ライフサイクル上の注意:
+ *   ready は JS の初期起動時、show/hide は時計アプリの表示状態が変わる時に来ます。
+ *   hide でも完全停止せず、更新間隔だけ長くしているのは、背景でも通知判定を続けるためです。
+ *   ただしスマホ OS や Pebble アプリの状態によって、背景実行は常に保証されるとは限りません。
  */
 Pebble.addEventListener('ready', function() {
   watchAppVisible = true;
